@@ -11,7 +11,7 @@ export default function proxy(request: Request) {
     style-src-attr 'none';
     img-src 'self' blob: data:;
     font-src 'self';
-    connect-src ${isDevelopment ? "'self' ws: wss:" : "'none'"};
+    connect-src 'self'${isDevelopment ? ' ws: wss:' : ''};
     media-src 'none';
     object-src 'none';
     worker-src 'none';

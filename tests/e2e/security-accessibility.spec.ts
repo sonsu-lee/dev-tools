@@ -9,7 +9,7 @@ test('serves a nonce-based CSP and restrictive security headers', async ({ page 
   expect(csp).toContain("default-src 'self'");
   expect(csp).toMatch(/script-src 'self' 'nonce-[^']+' 'strict-dynamic'/u);
   expect(csp).toMatch(/style-src 'self' 'nonce-[^']+'/u);
-  expect(csp).toContain("connect-src 'none'");
+  expect(csp).toContain("connect-src 'self'");
   expect(csp).toContain("object-src 'none'");
   expect(csp).toContain("frame-ancestors 'none'");
   expect(csp).not.toContain("'unsafe-inline'");
@@ -38,18 +38,35 @@ test('has no automatically detectable accessibility violations', async ({ page }
   expect(results.violations).toEqual([]);
 });
 
-test('does not send or persist values while the tool is used', async ({ page }) => {
+test('loads Vercel Speed Insights from the same origin', async ({ page }) => {
+  await page.goto('/');
+
+  await expect(page.locator('script[data-sdkn="@vercel/speed-insights/next"]')).toHaveAttribute(
+    'src',
+    /\/speed-insights\/script(?:\.debug)?\.js$/u,
+  );
+});
+
+test('does not send or persist input values while the tool is used', async ({ page }) => {
   await page.goto('/');
   await page.waitForLoadState('networkidle');
 
-  const requests: string[] = [];
-  page.on('request', (request) => requests.push(request.url()));
+  const requests: { body: string | null; url: string }[] = [];
+  page.on('request', (request) =>
+    requests.push({
+      body: request.postData(),
+      url: request.url(),
+    }),
+  );
 
   await page.getByLabel('Original value').fill('do-not-send');
   await page.getByRole('checkbox', { name: 'Show values' }).check();
   await page.getByRole('button', { name: 'Copy encoded value' }).click();
 
-  expect(requests).toEqual([]);
+  expect(JSON.stringify(requests)).not.toContain('do-not-send');
+  expect(requests.every(({ url }) => new URL(url).pathname.includes('/speed-insights/'))).toBe(
+    true,
+  );
   await expect(page).toHaveURL('/');
   await expect
     .poll(() =>
