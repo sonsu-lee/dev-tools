@@ -380,16 +380,21 @@ jobs:
         env:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: |
+          set +e
+          pnpm --silent dlx "vercel@${VERCEL_CLI_VERSION}" deploy \
+            --prebuilt \
+            --yes \
+            --format=json \
+            --token="$VERCEL_TOKEN" 2>&1 |
+            tee "$RUNNER_TEMP/vercel-deploy.log"
+          set -e
+
           url="$(
-            pnpm --silent dlx "vercel@${VERCEL_CLI_VERSION}" deploy \
-              --prebuilt \
-              --yes \
-              --format=json \
-              --token="$VERCEL_TOKEN" |
-              jq -r '.deployment.url'
+            grep -Eo 'https://[^[:space:]]+\.vercel\.app' \
+              "$RUNNER_TEMP/vercel-deploy.log" |
+              tail -n 1
           )"
           test -n "$url"
-          test "$url" != null
           echo "url=$url" >> "$GITHUB_OUTPUT"
 
   preview-smoke-test:
