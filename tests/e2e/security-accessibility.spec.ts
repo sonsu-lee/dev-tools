@@ -15,6 +15,16 @@ test('serves a nonce-based CSP and restrictive security headers', async ({ page 
   expect(csp).not.toContain("'unsafe-inline'");
   expect(csp).not.toContain("'unsafe-eval'");
 
+  const noncePrefix = "script-src 'self' 'nonce-";
+  const initialNonce = csp?.split(noncePrefix)[1]?.split("'")[0];
+  const reloadedResponse = await page.reload();
+  const reloadedCsp = reloadedResponse?.headers()['content-security-policy'];
+  const reloadedNonce = reloadedCsp?.split(noncePrefix)[1]?.split("'")[0];
+
+  expect(initialNonce).toBeTruthy();
+  expect(reloadedNonce).toBeTruthy();
+  expect(reloadedNonce).not.toBe(initialNonce);
+
   expect(headers?.['referrer-policy']).toBe('no-referrer');
   expect(headers?.['x-content-type-options']).toBe('nosniff');
   expect(headers?.['permissions-policy']).toContain('camera=()');

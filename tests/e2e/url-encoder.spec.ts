@@ -123,7 +123,9 @@ test('reports invalid Unicode without exposing a stale result', async ({ page })
 
   await expect(encoded).toHaveValue('');
   await expect(
-    page.getByRole('alert').filter({ hasText: 'This value contains an invalid Unicode sequence.' }),
+    page
+      .getByRole('status')
+      .filter({ hasText: 'This value contains an invalid Unicode sequence.' }),
   ).toHaveText('This value contains an invalid Unicode sequence.');
   await expect(page.getByRole('button', { name: 'Copy encoded value' })).toBeDisabled();
 });

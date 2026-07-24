@@ -474,9 +474,9 @@ export default function UrlEncoder() {
 
           <div {...props(styles.messageSlot)}>
             {encodingFailed ? (
-              <p id="encoding-error" role="alert" {...props(styles.error)}>
+              <output aria-live="polite" id="encoding-error" {...props(styles.error)}>
                 This value contains an invalid Unicode sequence.
-              </p>
+              </output>
             ) : (
               <output aria-live="polite" {...props(styles.message)}>
                 {message}
