@@ -1,6 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 
 const isCI = process.env.CI !== undefined;
+const reuseBuild = process.env.PLAYWRIGHT_REUSE_BUILD === 'true';
 
 export default defineConfig({
   forbidOnly: isCI,
@@ -20,8 +21,10 @@ export default defineConfig({
     trace: 'retain-on-failure',
   },
   webServer: {
-    command: 'pnpm build && pnpm exec next start --hostname 127.0.0.1 --port 3100',
-    reuseExistingServer: !isCI,
+    command: reuseBuild
+      ? 'pnpm exec next start --hostname 127.0.0.1 --port 3100'
+      : 'pnpm build && pnpm exec next start --hostname 127.0.0.1 --port 3100',
+    reuseExistingServer: reuseBuild && !isCI,
     timeout: 120_000,
     url: 'http://127.0.0.1:3100',
   },

@@ -10,7 +10,10 @@
     "lint": "oxlint .",
     "lint:fix": "oxlint . --fix",
     "start": "next start",
+    "test": "pnpm test:e2e",
     "test:e2e": "playwright test",
+    "test:e2e:functional": "playwright test tests/e2e/url-encoder.spec.ts",
+    "test:e2e:quality": "playwright test tests/e2e/security-accessibility.spec.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
