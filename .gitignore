@@ -36,6 +36,12 @@ yarn-error.log*
 # vercel
 .vercel
 
+# local implementation plans
+/docs/superpowers/plans/
+/.pnpm-store/
+/playwright-report/
+/test-results/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts

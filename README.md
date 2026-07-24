@@ -1,28 +1,30 @@
-# next-template
+# Dev Tools
 
-A single Next.js application template for small products deployed on Vercel.
-The app, UI, and server entry points live in one project without a workspace
-or a separate backend service.
+브라우저에서 바로 사용하는 작은 개발자 도구 모음이다. 현재 제공하는
+기능은 문자열을 JavaScript의 `encodeURIComponent()`와 같은 결과로
+변환하는 URL 컴포넌트 인코더다.
 
-## Stack
+URL 인코딩은 암호화가 아니며 결과에서 원문을 복원할 수 있다.
 
-- Next.js canary with React Compiler
-- React 19
-- TypeScript 7
-- StyleX
-- TanStack Query
-- XState
-- Oxfmt and Oxlint
-- pnpm 11
+## URL 컴포넌트 인코더
 
-## Requirements
+- 입력값과 결과를 기본적으로 마스킹한다.
+- 입력과 결과는 현재 탭의 메모리에서만 처리한다.
+- URL, 쿠키, 브라우저 저장소, 애플리케이션 서버로 값을 보내지 않는다.
+- 복사에 성공하면 화면의 값을 즉시 지운다.
+- 복사에 실패하면 값을 유지하고 공개해 수동 복사할 수 있게 한다.
+- `encodeURIComponent()`가 처리할 수 없는 Unicode 입력은 원문을
+  유지한 채 오류로 표시한다.
 
-- Node.js `^20.19.0` or `>=22.12.0`
+시스템 클립보드에 복사된 값은 브라우저와 운영체제가 관리하므로
+애플리케이션이 이후의 수명이나 삭제를 보장하지 않는다.
+
+## 로컬 실행
+
+요구 사항:
+
+- Node.js `^20.19.0` 또는 `>=22.12.0`
 - Corepack
-
-The exact pnpm release is declared in `package.json`.
-
-## Start
 
 ```bash
 corepack enable
@@ -30,68 +32,57 @@ pnpm install
 pnpm dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000).
+[http://localhost:3000](http://localhost:3000)을 연다.
 
-## Commands
+## 검증 명령
 
 ```bash
-pnpm dev
-pnpm build
-pnpm start
-pnpm format
 pnpm format:check
 pnpm lint
-pnpm lint:fix
 pnpm typecheck
+pnpm build
+pnpm test:e2e
 ```
 
-All commands run directly against the root application. There is no Turbo
-task layer, workspace filter, or internal package build.
+`pnpm test:e2e`는 프로덕션 빌드를 실행한 뒤 Chromium에서 기능,
+클립보드 실패 처리, CSP와 보안 헤더, 브라우저 저장소와 네트워크 사용,
+axe 접근성 검사, 320 CSS px 레이아웃을 확인한다.
 
-## Structure
+## 구조
 
 ```text
 src/
-├── app/       # App Router pages, layouts, providers, and server entry points
-├── examples/  # Compile-checked reference implementations
-└── lib/       # Shared application primitives
+├── app/                  # 페이지, 레이아웃, 전역 스타일
+├── features/url-encoder/ # URL 인코더 UI와 클라이언트 동작
+└── proxy.ts              # 요청별 nonce와 Content Security Policy
+
+docs/
+├── domains/url-encoder/contract.md # 제품 동작과 보안 계약
+└── frontend/state-management.md    # 프런트엔드 상태 관리 기준
+
+tests/e2e/                # Playwright 기능·보안·접근성 테스트
 ```
 
-The starter page stays intentionally small. The profile flow under
-`src/examples` demonstrates how TanStack Query and XState can work together
-without becoming part of the default route.
+URL 인코더는 소수의 독립적인 로컬 UI 상태만 필요하므로 React 상태를
+사용하고, 인코딩 결과와 오류는 입력에서 즉시 파생한다. 상태 전이,
+비동기 actor, 공유 워크플로가 필요해질 때 XState로 옮긴다.
 
-## Server boundaries
+## 보안 경계
 
-Keep product code inside Next.js until a concrete requirement justifies
-another boundary:
+프로덕션 페이지는 Next.js Proxy에서 요청마다 nonce를 만들고 strict
+CSP를 적용한다. `connect-src 'none'`, `object-src 'none'`,
+`frame-ancestors 'none'`을 유지하며 런타임 외부 자산, 분석 도구,
+서버 변환 API를 사용하지 않는다.
 
-- Use Server Components for server-side reads used during rendering.
-- Use Server Actions for mutations initiated by the application UI.
-- Use Route Handlers for public HTTP APIs, webhooks, callbacks, and file
-  responses.
-- Import shared server logic directly from Server Components instead of
-  calling the application's own Route Handlers over HTTP.
+nonce 적용을 위해 페이지는 동적으로 렌더링된다. 최초 문서와 자체
+호스팅된 정적 자산은 서버에서 받지만, 페이지가 준비된 뒤 입력·표시·
+복사·초기화 과정에서 사용자 값으로 네트워크 요청을 만들지 않는다.
 
-If an API grows enough to need shared HTTP middleware, versioned routing, or
-portable handlers, mount Hono from a catch-all Route Handler such as
-`src/app/api/[[...route]]/route.ts`. Hono is not installed by default.
+세부 계약은 [URL 컴포넌트 인코더 계약](docs/domains/url-encoder/contract.md),
+시각 기준은 [디자인 문서](design.md)를 따른다.
 
-Vercel Cron Jobs and Queues should be added when the product needs scheduled
-or durable background work. They are intentionally not preconfigured in the
-base template.
+## Vercel 배포
 
-## Conventions
-
-- [StyleX authoring](docs/agent-references/stylex-authoring.md)
-- [Frontend state and data flow](docs/frontend/state-management.md)
-
-TanStack Query owns server data and cache state. XState owns local UI state,
-workflows, and editable drafts. Keep values derived for rendering out of both
-stores when they can be computed from their source.
-
-## Deploy
-
-Import the repository into [Vercel](https://vercel.com/new) as a standard
-Next.js project. The repository root is the application root, so no monorepo
-root-directory or workspace configuration is required.
+저장소 루트를 표준 Next.js 프로젝트로 Vercel에 연결한다. 애플리케이션
+환경 변수, 별도 백엔드, 모노레포 Root Directory 설정은 필요하지 않다.
+CI/CD 자동화는 애플리케이션 기능이 확정된 뒤 별도로 구성한다.
