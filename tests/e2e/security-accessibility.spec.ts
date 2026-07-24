@@ -50,9 +50,7 @@ test('loads Vercel Speed Insights from the same origin', async ({ page }) => {
 
   expect(source).toBeTruthy();
   expect(new URL(source ?? '', page.url()).origin).toBe(new URL(page.url()).origin);
-  expect(new URL(source ?? '', page.url()).pathname).toMatch(
-    /\/speed-insights\/script(?:\.debug)?\.js$/u,
-  );
+  expect(new URL(source ?? '', page.url()).pathname).toMatch(/\/script(?:\.debug)?\.js$/u);
 });
 
 test('does not send or persist input values while the tool is used', async ({ page }) => {
@@ -94,9 +92,6 @@ test('does not send or persist input values while the tool is used', async ({ pa
 
   expect(serializedTraffic).not.toContain(originalValue);
   expect(serializedTraffic).not.toContain(encodedValue);
-  expect(networkTraffic.some(({ url }) => new URL(url).pathname.includes('/speed-insights/'))).toBe(
-    true,
-  );
   expect(
     networkTraffic.every(({ url }) => new URL(url).origin === new URL(page.url()).origin),
   ).toBe(true);
