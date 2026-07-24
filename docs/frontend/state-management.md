@@ -14,6 +14,18 @@ The boundary is ownership, not whether an operation is asynchronous.
 | Values derived for rendering | Selector or component | Derive them from their source instead of storing another copy. |
 | Outcome of asynchronous work started and branched on by a machine | XState actor | Model success and failure with actor `onDone` and `onError` transitions. |
 
+### Trivial leaf-state exception
+
+Use React `useState` for a leaf component when every state change is a direct
+UI event and there are no workflow-dependent legal transitions. A local input,
+a show/hide toggle, and a copy message are examples. Keep derived values out of
+state.
+
+Move the component to XState when it gains multi-step transitions, retry or
+cancellation rules, concurrent actors, or state shared across component
+boundaries. Do not introduce a machine only to wrap setters and one
+`try`/`catch`.
+
 Initializing an editable draft from loaded server data is local initialization.
 It does not make the draft a live copy of the cache. Never copy `query.data`,
 query status, or query errors into machine context, and never continuously sync
