@@ -1,0 +1,481 @@
+name: Continuous Integration
+
+on:
+  pull_request:
+    branches:
+      - main
+    types:
+      - opened
+      - reopened
+      - synchronize
+      - ready_for_review
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: '24'
+  PNPM_VERSION: '11.15.1'
+  VERCEL_CLI_VERSION: '56.3.1'
+  SOURCE_ARTIFACT: source-${{ github.event.pull_request.head.sha }}
+  NEXT_BUILD_ARTIFACT: next-build-${{ github.event.pull_request.head.sha }}
+  VERCEL_PREVIEW_ARTIFACT: vercel-preview-${{ github.event.pull_request.head.sha }}
+
+jobs:
+  formatting:
+    name: Formatting
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out pull request
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check formatting
+        run: pnpm format:check
+
+      - name: Archive verified source
+        run: git archive --format=tar.gz --output="$RUNNER_TEMP/source.tgz" HEAD
+
+      - name: Upload verified source
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ${{ env.SOURCE_ARTIFACT }}
+          path: ${{ runner.temp }}/source.tgz
+          retention-days: 1
+
+  linting:
+    name: Linting
+    needs: formatting
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Download verified source
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: ${{ env.SOURCE_ARTIFACT }}
+          path: ${{ runner.temp }}/source
+
+      - name: Extract verified source
+        run: tar -xzf "$RUNNER_TEMP/source/source.tgz"
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+  type-checking:
+    name: Type Checking
+    needs: linting
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Download verified source
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: ${{ env.SOURCE_ARTIFACT }}
+          path: ${{ runner.temp }}/source
+
+      - name: Extract verified source
+        run: tar -xzf "$RUNNER_TEMP/source/source.tgz"
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check types
+        run: pnpm typecheck
+
+  application-build:
+    name: Application Build
+    needs: type-checking
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Download verified source
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: ${{ env.SOURCE_ARTIFACT }}
+          path: ${{ runner.temp }}/source
+
+      - name: Extract verified source
+        run: tar -xzf "$RUNNER_TEMP/source/source.tgz"
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build application
+        run: pnpm build
+
+      - name: Archive Next.js build
+        run: tar -czf "$RUNNER_TEMP/next-build.tgz" .next
+
+      - name: Upload Next.js build
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ${{ env.NEXT_BUILD_ARTIFACT }}
+          path: ${{ runner.temp }}/next-build.tgz
+          retention-days: 1
+
+  browser-functional-tests:
+    name: Browser Functional Tests
+    needs: application-build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Download verified source
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: ${{ env.SOURCE_ARTIFACT }}
+          path: ${{ runner.temp }}/source
+
+      - name: Download Next.js build
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: ${{ env.NEXT_BUILD_ARTIFACT }}
+          path: ${{ runner.temp }}/next-build
+
+      - name: Extract artifacts
+        run: |
+          tar -xzf "$RUNNER_TEMP/source/source.tgz"
+          tar -xzf "$RUNNER_TEMP/next-build/next-build.tgz"
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Run functional tests
+        env:
+          PLAYWRIGHT_REUSE_BUILD: 'true'
+        run: pnpm test:e2e:functional
+
+      - name: Upload functional test diagnostics
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: functional-test-diagnostics-${{ github.event.pull_request.head.sha }}
+          path: |
+            playwright-report
+            test-results
+          if-no-files-found: ignore
+          retention-days: 7
+
+  security-accessibility-tests:
+    name: Security and Accessibility Tests
+    needs: application-build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Download verified source
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: ${{ env.SOURCE_ARTIFACT }}
+          path: ${{ runner.temp }}/source
+
+      - name: Download Next.js build
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: ${{ env.NEXT_BUILD_ARTIFACT }}
+          path: ${{ runner.temp }}/next-build
+
+      - name: Extract artifacts
+        run: |
+          tar -xzf "$RUNNER_TEMP/source/source.tgz"
+          tar -xzf "$RUNNER_TEMP/next-build/next-build.tgz"
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Run security and accessibility tests
+        env:
+          PLAYWRIGHT_REUSE_BUILD: 'true'
+        run: pnpm test:e2e:quality
+
+      - name: Upload quality test diagnostics
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: quality-test-diagnostics-${{ github.event.pull_request.head.sha }}
+          path: |
+            playwright-report
+            test-results
+          if-no-files-found: ignore
+          retention-days: 7
+
+  vercel-preview-build:
+    name: Vercel Preview Build
+    needs:
+      - browser-functional-tests
+      - security-accessibility-tests
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: dev
+    env:
+      VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+    steps:
+      - name: Download verified source
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: ${{ env.SOURCE_ARTIFACT }}
+          path: ${{ runner.temp }}/source
+
+      - name: Extract verified source
+        run: tar -xzf "$RUNNER_TEMP/source/source.tgz"
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Pull Vercel Preview settings
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: >-
+          pnpm dlx "vercel@${VERCEL_CLI_VERSION}" pull
+          --yes
+          --environment=preview
+          --token="$VERCEL_TOKEN"
+
+      - name: Build Vercel Preview
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: pnpm dlx "vercel@${VERCEL_CLI_VERSION}" build --token="$VERCEL_TOKEN"
+
+      - name: Archive Vercel Preview
+        run: >-
+          tar -czf "$RUNNER_TEMP/vercel-preview.tgz"
+          .vercel/output
+          .vercel/project.json
+
+      - name: Upload Vercel Preview
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ${{ env.VERCEL_PREVIEW_ARTIFACT }}
+          path: ${{ runner.temp }}/vercel-preview.tgz
+          retention-days: 1
+
+  preview-deployment:
+    name: Preview Deployment
+    needs: vercel-preview-build
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: dev
+      url: ${{ steps.deploy.outputs.url }}
+    env:
+      VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+    outputs:
+      url: ${{ steps.deploy.outputs.url }}
+    steps:
+      - name: Download Vercel Preview
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: ${{ env.VERCEL_PREVIEW_ARTIFACT }}
+
+      - name: Extract Vercel Preview
+        run: tar -xzf vercel-preview.tgz
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Deploy Vercel Preview
+        id: deploy
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          url="$(
+            pnpm --silent dlx "vercel@${VERCEL_CLI_VERSION}" deploy \
+              --prebuilt \
+              --yes \
+              --format=json \
+              --token="$VERCEL_TOKEN" |
+              jq -r '.deployment.url'
+          )"
+          test -n "$url"
+          test "$url" != null
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+
+  preview-smoke-test:
+    name: Preview Smoke Test
+    needs: preview-deployment
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: dev
+    env:
+      VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+      PREVIEW_URL: ${{ needs.preview-deployment.outputs.url }}
+    steps:
+      - name: Set up pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Verify Vercel Preview
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          pnpm dlx "vercel@${VERCEL_CLI_VERSION}" curl / \
+            --deployment="$PREVIEW_URL" \
+            --token="$VERCEL_TOKEN" \
+            -- \
+            --silent \
+            --show-error \
+            --fail \
+            --dump-header "$RUNNER_TEMP/preview-headers.txt" \
+            --output "$RUNNER_TEMP/preview-body.html"
+          grep -qi '^content-security-policy:.*connect-src.*none' "$RUNNER_TEMP/preview-headers.txt"
+          grep -qi '^x-content-type-options: nosniff' "$RUNNER_TEMP/preview-headers.txt"
+          grep -q 'URL component encoder' "$RUNNER_TEMP/preview-body.html"
+          grep -q 'encodeURIComponent' "$RUNNER_TEMP/preview-body.html"
+
+  continuous-integration-gate:
+    name: Continuous Integration Gate
+    needs:
+      - formatting
+      - linting
+      - type-checking
+      - application-build
+      - browser-functional-tests
+      - security-accessibility-tests
+      - vercel-preview-build
+      - preview-deployment
+      - preview-smoke-test
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      SAME_REPOSITORY: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+      FORMATTING_RESULT: ${{ needs.formatting.result }}
+      LINTING_RESULT: ${{ needs.linting.result }}
+      TYPE_CHECKING_RESULT: ${{ needs.type-checking.result }}
+      APPLICATION_BUILD_RESULT: ${{ needs.application-build.result }}
+      FUNCTIONAL_TEST_RESULT: ${{ needs.browser-functional-tests.result }}
+      QUALITY_TEST_RESULT: ${{ needs.security-accessibility-tests.result }}
+      PREVIEW_BUILD_RESULT: ${{ needs.vercel-preview-build.result }}
+      PREVIEW_DEPLOYMENT_RESULT: ${{ needs.preview-deployment.result }}
+      PREVIEW_SMOKE_RESULT: ${{ needs.preview-smoke-test.result }}
+    steps:
+      - name: Require all applicable jobs
+        run: |
+          test "$FORMATTING_RESULT" = success
+          test "$LINTING_RESULT" = success
+          test "$TYPE_CHECKING_RESULT" = success
+          test "$APPLICATION_BUILD_RESULT" = success
+          test "$FUNCTIONAL_TEST_RESULT" = success
+          test "$QUALITY_TEST_RESULT" = success
+
+          if [ "$SAME_REPOSITORY" = true ]; then
+            test "$PREVIEW_BUILD_RESULT" = success
+            test "$PREVIEW_DEPLOYMENT_RESULT" = success
+            test "$PREVIEW_SMOKE_RESULT" = success
+          else
+            test "$PREVIEW_BUILD_RESULT" = skipped
+            test "$PREVIEW_DEPLOYMENT_RESULT" = skipped
+            test "$PREVIEW_SMOKE_RESULT" = skipped
+          fi
