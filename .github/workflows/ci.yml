@@ -322,6 +322,7 @@ jobs:
           tar -czf "$RUNNER_TEMP/vercel-preview.tgz"
           .vercel/output
           .vercel/project.json
+          .next
 
       - name: Upload Vercel Preview
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
