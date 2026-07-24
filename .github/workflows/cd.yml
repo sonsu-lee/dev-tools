@@ -1,0 +1,389 @@
+name: Continuous Deployment
+
+on:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: '24'
+  PNPM_VERSION: '11.15.1'
+  VERCEL_CLI_VERSION: '56.3.1'
+  SOURCE_ARTIFACT: source-${{ github.sha }}
+  DEVELOPMENT_ARTIFACT: vercel-development-${{ github.sha }}
+  PRODUCTION_ARTIFACT: vercel-production-${{ github.sha }}
+
+jobs:
+  release-source:
+    name: Release Source
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out main commit
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+
+      - name: Archive release source
+        run: git archive --format=tar.gz --output="$RUNNER_TEMP/source.tgz" HEAD
+
+      - name: Upload release source
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ${{ env.SOURCE_ARTIFACT }}
+          path: ${{ runner.temp }}/source.tgz
+          retention-days: 1
+
+  development-build:
+    name: Development Build
+    needs: release-source
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: dev
+    env:
+      VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+    steps:
+      - name: Download release source
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: ${{ env.SOURCE_ARTIFACT }}
+          path: ${{ runner.temp }}/source
+
+      - name: Extract release source
+        run: tar -xzf "$RUNNER_TEMP/source/source.tgz"
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Pull Vercel Preview settings
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: >-
+          pnpm dlx "vercel@${VERCEL_CLI_VERSION}" pull
+          --yes
+          --environment=preview
+
+      - name: Build development candidate
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: pnpm dlx "vercel@${VERCEL_CLI_VERSION}" build
+
+      - name: Archive development candidate
+        run: >-
+          tar -czf "$RUNNER_TEMP/vercel-development.tgz"
+          .vercel/output
+          .vercel/project.json
+          .next
+
+      - name: Upload development candidate
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ${{ env.DEVELOPMENT_ARTIFACT }}
+          path: ${{ runner.temp }}/vercel-development.tgz
+          retention-days: 1
+
+  development-deployment:
+    name: Development Deployment
+    needs:
+      - release-source
+      - development-build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: dev
+      url: ${{ steps.deploy.outputs.url }}
+    env:
+      VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+    outputs:
+      url: ${{ steps.deploy.outputs.url }}
+    steps:
+      - name: Download release source
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: ${{ env.SOURCE_ARTIFACT }}
+          path: ${{ runner.temp }}/source
+
+      - name: Extract release source
+        run: tar -xzf "$RUNNER_TEMP/source/source.tgz"
+
+      - name: Download development candidate
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: ${{ env.DEVELOPMENT_ARTIFACT }}
+
+      - name: Extract development candidate
+        run: tar -xzf vercel-development.tgz
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Deploy development candidate
+        id: deploy
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          set +e
+          pnpm --silent dlx "vercel@${VERCEL_CLI_VERSION}" deploy \
+            --prebuilt \
+            --yes \
+            --format=json \
+            --meta "githubCommitSha=$GITHUB_SHA" 2>&1 |
+            tee "$RUNNER_TEMP/vercel-deploy.log"
+          set -e
+
+          url="$(
+            grep -Eo 'https://[^[:space:]]+\.vercel\.app' \
+              "$RUNNER_TEMP/vercel-deploy.log" |
+              tail -n 1
+          )"
+          test -n "$url"
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+
+  development-smoke-test:
+    name: Development Smoke Test
+    needs: development-deployment
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: dev
+    env:
+      VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+      DEVELOPMENT_URL: ${{ needs.development-deployment.outputs.url }}
+    steps:
+      - name: Set up pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Verify development candidate
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          pnpm dlx "vercel@${VERCEL_CLI_VERSION}" curl / \
+            --deployment="$DEVELOPMENT_URL" \
+            -- \
+            --silent \
+            --show-error \
+            --fail \
+            --dump-header "$RUNNER_TEMP/development-headers.txt" \
+            --output "$RUNNER_TEMP/development-body.html"
+          grep -qi '^content-security-policy:.*connect-src.*none' "$RUNNER_TEMP/development-headers.txt"
+          grep -qi '^x-content-type-options: nosniff' "$RUNNER_TEMP/development-headers.txt"
+          grep -q 'URL component encoder' "$RUNNER_TEMP/development-body.html"
+          grep -q 'encodeURIComponent' "$RUNNER_TEMP/development-body.html"
+
+  production-build:
+    name: Production Build
+    needs:
+      - release-source
+      - development-smoke-test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: prod
+    env:
+      VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+    steps:
+      - name: Download release source
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: ${{ env.SOURCE_ARTIFACT }}
+          path: ${{ runner.temp }}/source
+
+      - name: Extract release source
+        run: tar -xzf "$RUNNER_TEMP/source/source.tgz"
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Pull Vercel Production settings
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: >-
+          pnpm dlx "vercel@${VERCEL_CLI_VERSION}" pull
+          --yes
+          --environment=production
+
+      - name: Build production release
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: pnpm dlx "vercel@${VERCEL_CLI_VERSION}" build --prod
+
+      - name: Archive production release
+        run: >-
+          tar -czf "$RUNNER_TEMP/vercel-production.tgz"
+          .vercel/output
+          .vercel/project.json
+          .next
+
+      - name: Upload production release
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: ${{ env.PRODUCTION_ARTIFACT }}
+          path: ${{ runner.temp }}/vercel-production.tgz
+          retention-days: 1
+
+  production-deployment:
+    name: Production Deployment
+    needs:
+      - release-source
+      - production-build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment:
+      name: prod
+      url: ${{ steps.deploy.outputs.url }}
+    env:
+      VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+    outputs:
+      url: ${{ steps.deploy.outputs.url }}
+    steps:
+      - name: Download release source
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: ${{ env.SOURCE_ARTIFACT }}
+          path: ${{ runner.temp }}/source
+
+      - name: Extract release source
+        run: tar -xzf "$RUNNER_TEMP/source/source.tgz"
+
+      - name: Download production release
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: ${{ env.PRODUCTION_ARTIFACT }}
+
+      - name: Extract production release
+        run: tar -xzf vercel-production.tgz
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Deploy production release
+        id: deploy
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          set +e
+          pnpm --silent dlx "vercel@${VERCEL_CLI_VERSION}" deploy \
+            --prebuilt \
+            --prod \
+            --yes \
+            --format=json \
+            --meta "githubCommitSha=$GITHUB_SHA" 2>&1 |
+            tee "$RUNNER_TEMP/vercel-deploy.log"
+          set -e
+
+          url="$(
+            grep -Eo 'https://[^[:space:]]+\.vercel\.app' \
+              "$RUNNER_TEMP/vercel-deploy.log" |
+              tail -n 1
+          )"
+          test -n "$url"
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+
+  production-verification:
+    name: Production Verification
+    needs: production-deployment
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: prod
+    env:
+      VERCEL_ORG_ID: ${{ vars.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID }}
+      PRODUCTION_URL: ${{ needs.production-deployment.outputs.url }}
+    steps:
+      - name: Set up pnpm
+        uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1 # v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Verify production deployment metadata
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          deployment_host="${PRODUCTION_URL#https://}"
+          umask 077
+          echo "Authorization: Bearer $VERCEL_TOKEN" > "$RUNNER_TEMP/vercel-auth-header"
+          curl --silent --show-error --fail \
+            --header "@$RUNNER_TEMP/vercel-auth-header" \
+            "https://api.vercel.com/v13/deployments/$deployment_host?teamId=$VERCEL_ORG_ID" \
+            --output "$RUNNER_TEMP/production-deployment.json"
+          jq --exit-status \
+            --arg expected_sha "$GITHUB_SHA" \
+            '.readyState == "READY" and
+             .target == "production" and
+             .meta.githubCommitSha == $expected_sha' \
+            "$RUNNER_TEMP/production-deployment.json"
+
+      - name: Verify production response
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          pnpm dlx "vercel@${VERCEL_CLI_VERSION}" curl / \
+            --deployment="$PRODUCTION_URL" \
+            -- \
+            --silent \
+            --show-error \
+            --fail \
+            --dump-header "$RUNNER_TEMP/production-headers.txt" \
+            --output "$RUNNER_TEMP/production-body.html"
+          grep -qi '^content-security-policy:.*connect-src.*none' "$RUNNER_TEMP/production-headers.txt"
+          grep -qi '^x-content-type-options: nosniff' "$RUNNER_TEMP/production-headers.txt"
+          grep -q 'URL component encoder' "$RUNNER_TEMP/production-body.html"
+          grep -q 'encodeURIComponent' "$RUNNER_TEMP/production-body.html"
