@@ -41,10 +41,10 @@ pnpm format:check
 pnpm lint
 pnpm typecheck
 pnpm build
-pnpm test:e2e
+pnpm test
 ```
 
-`pnpm test:e2e`는 프로덕션 빌드를 실행한 뒤 Chromium에서 기능,
+`pnpm test`는 프로덕션 빌드를 실행한 뒤 Chromium에서 기능,
 클립보드 실패 처리, CSP와 보안 헤더, 브라우저 저장소와 네트워크 사용,
 axe 접근성 검사, 320 CSS px 레이아웃을 확인한다.
 
@@ -58,6 +58,7 @@ src/
 
 docs/
 ├── domains/url-encoder/contract.md # 제품 동작과 보안 계약
+├── domains/delivery/contract.md    # CI/CD와 환경 전달 계약
 └── frontend/state-management.md    # 프런트엔드 상태 관리 기준
 
 tests/e2e/                # Playwright 기능·보안·접근성 테스트
@@ -83,6 +84,16 @@ nonce 적용을 위해 페이지는 동적으로 렌더링된다. 최초 문서�
 
 ## Vercel 배포
 
-저장소 루트를 표준 Next.js 프로젝트로 Vercel에 연결한다. 애플리케이션
-환경 변수, 별도 백엔드, 모노레포 Root Directory 설정은 필요하지 않다.
-CI/CD 자동화는 애플리케이션 기능이 확정된 뒤 별도로 구성한다.
+PR은 Continuous Integration에서 포맷, 린트, 타입, 빌드, 브라우저
+기능·보안·접근성 테스트와 Vercel Preview를 검증한다.
+`Continuous Integration Gate`와 리뷰가 통과한 변경만 `main`에
+병합한다.
+
+`main` 병합은 Continuous Deployment를 시작한다. 개발 빌드·배포의
+스모크 테스트를 통과한 동일 커밋을 운영 설정으로 다시 빌드하고
+배포한다. 마지막 단계에서 운영 대상, Git 커밋 메타데이터, 실제 응답과
+보안 헤더를 함께 검증한다.
+
+GitHub Environment는 `dev`, `prod`만 사용하며 Vercel 토큰은 환경별로
+분리한다. 자세한 트리거, 단계, 아티팩트와 실패 기준은
+[전달 계약](docs/domains/delivery/contract.md)을 따른다.
