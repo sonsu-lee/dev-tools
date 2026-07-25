@@ -199,7 +199,7 @@ jobs:
             --fail \
             --dump-header "$RUNNER_TEMP/development-headers.txt" \
             --output "$RUNNER_TEMP/development-body.html"
-          grep -qi "connect-src 'self';" "$RUNNER_TEMP/development-headers.txt"
+          grep -qi "^content-security-policy:.*connect-src 'self';" "$RUNNER_TEMP/development-headers.txt"
           grep -qi '^x-content-type-options: nosniff' "$RUNNER_TEMP/development-headers.txt"
           grep -q 'URL component encoder' "$RUNNER_TEMP/development-body.html"
           grep -q 'encodeURIComponent' "$RUNNER_TEMP/development-body.html"
@@ -383,7 +383,7 @@ jobs:
             --fail \
             --dump-header "$RUNNER_TEMP/production-headers.txt" \
             --output "$RUNNER_TEMP/production-body.html"
-          grep -qi "connect-src 'self';" "$RUNNER_TEMP/production-headers.txt"
+          grep -qi "^content-security-policy:.*connect-src 'self';" "$RUNNER_TEMP/production-headers.txt"
           grep -qi '^x-content-type-options: nosniff' "$RUNNER_TEMP/production-headers.txt"
           grep -q 'URL component encoder' "$RUNNER_TEMP/production-body.html"
           grep -q 'encodeURIComponent' "$RUNNER_TEMP/production-body.html"

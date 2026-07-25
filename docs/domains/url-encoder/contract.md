@@ -67,13 +67,12 @@ encodeURIComponent(input)
 - URL 경로, 쿼리, 해시
 - 쿠키
 - `localStorage`, `sessionStorage`, IndexedDB, Cache Storage
-- 네트워크 요청과 WebSocket의 URL, 헤더, 본문
-- 콘솔, 성능 측정값, 원격 오류 수집
+- 네트워크 요청과 WebSocket
+- 콘솔, 분석 도구, 원격 오류 수집
 
-Vercel Speed Insights는 URL, 브라우저와 기기 정보, 국가, 네트워크
-속도, Web Vital과 관련 HTML 요소를 익명 성능 측정값으로 전송할 수
-있다. 원문과 인코딩 결과는 성능 측정값에 포함하지 않는다. 입력,
-공개, 복사, 초기화는 성능 측정 외 네트워크 요청을 만들지 않는다.
+입력, 공개, 복사, 초기화가 원문이나 결과를 포함한 네트워크 요청을
+만들면 안 된다. Vercel Speed Insights는 입력값과 결과와 분리된 익명
+성능 측정값만 동일 출처로 전송한다.
 
 프로덕션은 Next.js 공식 nonce 방식의 strict CSP를 사용한다.
 `script-src`와 `style-src`에는 요청별 nonce를 적용하고
@@ -104,8 +103,7 @@ Copy는 결과를 시스템 클립보드로 전달한다. 클립보드에 기록
 - 복사 성공 후 값이 제거됨
 - 복사 실패와 Unicode 오류 후 값이 유지됨
 - Show values와 Clear가 키보드로 동작함
-- 입력값이 네트워크 요청이나 브라우저 저장소에 포함되지 않음
-- 익명 성능 측정은 동일 출처 Vercel 엔드포인트로만 전송됨
+- 원문과 결과가 네트워크 요청이나 브라우저 저장소에 포함되지 않음
 - CSP와 필수 보안 헤더가 프로덕션 응답에 있음
 - axe 기본 검사와 320 CSS px 검사가 통과함
 - Vercel 배포에 애플리케이션 환경 변수가 필요하지 않음
