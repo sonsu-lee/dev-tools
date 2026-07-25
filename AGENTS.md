@@ -25,6 +25,8 @@ asynchronous actors, or prefetching under `src`, read and follow
 - Keep derived values derived; never mirror query data, status, or errors into
   machine context.
 - Use `fromPromise` when a machine owns async timing and outcome, and keep
-  TanStack Query hook constraints behind the query adapter boundary.
+  TanStack Query hooks at component boundaries.
 - Keep flow and API dependencies referentially stable; inject clients through
   a flow factory rather than storing them in machine context.
+- XState and TanStack Query are architectural options, not default
+  dependencies; install them only for a concrete product need.
