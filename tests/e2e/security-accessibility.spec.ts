@@ -42,14 +42,18 @@ test('does not send or persist input values while the tool is used', async ({ pa
   await page.goto('/');
   await page.waitForLoadState('networkidle');
 
+  const original = 'do-not-send?token=alpha beta';
+  const encoded = encodeURIComponent(original);
   const requests: string[] = [];
   page.on('request', (request) => requests.push(`${request.url()} ${request.postData() ?? ''}`));
 
-  await page.getByLabel('Original value').fill('do-not-send');
+  await page.getByLabel('Original value').fill(original);
   await page.getByRole('checkbox', { name: 'Show values' }).check();
   await page.getByRole('button', { name: 'Copy encoded value' }).click();
 
-  expect(requests.join('\n')).not.toContain('do-not-send');
+  const requestLog = requests.join('\n');
+  expect(requestLog).not.toContain(original);
+  expect(requestLog).not.toContain(encoded);
   await expect(page).toHaveURL('/');
   await expect
     .poll(() =>
