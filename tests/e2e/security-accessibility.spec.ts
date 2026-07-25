@@ -42,7 +42,8 @@ test('does not send or persist input values while the tool is used', async ({ pa
   await page.goto('/');
   await page.waitForLoadState('networkidle');
 
-  const original = 'do-not-send?token=alpha beta';
+  const canary = 'NETWORKCANARY42';
+  const original = `do-not-send?token=alpha beta-${canary}`;
   const encoded = encodeURIComponent(original);
   const requests: string[] = [];
   page.on('request', (request) => requests.push(`${request.url()} ${request.postData() ?? ''}`));
@@ -54,6 +55,7 @@ test('does not send or persist input values while the tool is used', async ({ pa
   const requestLog = requests.join('\n');
   expect(requestLog).not.toContain(original);
   expect(requestLog).not.toContain(encoded);
+  expect(requestLog).not.toContain(canary);
   await expect(page).toHaveURL('/');
   await expect
     .poll(() =>
