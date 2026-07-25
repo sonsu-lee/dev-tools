@@ -11,9 +11,10 @@ test('presents one focused local-only encoding workflow', async ({ page }) => {
   ).toBeVisible();
   await expect(page.getByText('Input stays local', { exact: true })).toBeVisible();
   await expect(
-    page.getByText('Anonymous page views and performance metrics are sent to Vercel.', {
-      exact: false,
-    }),
+    page.getByText(
+      'Your input is processed in this tab and is not sent to our server, analytics, or browser storage. Copying places the encoded value on your system clipboard.',
+      { exact: true },
+    ),
   ).toBeVisible();
   await expect(page.getByText('URL encoding is reversible. It is not encryption.')).toBeVisible();
 });
