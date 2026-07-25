@@ -46,12 +46,16 @@ test('does not send or persist input values while the tool is used', async ({ pa
   const original = `do-not-send?token=alpha beta-${canary}`;
   const encoded = encodeURIComponent(original);
   const requests: string[] = [];
-  page.on('request', (request) => requests.push(`${request.url()} ${request.postData() ?? ''}`));
+  page.on('request', async (request) => {
+    const headers = await request.allHeaders();
+    requests.push(`${request.url()} ${request.postData() ?? ''} ${JSON.stringify(headers)}`);
+  });
 
   await page.getByLabel('Original value').fill(original);
   await page.getByRole('checkbox', { name: 'Show values' }).check();
   await page.getByRole('button', { name: 'Copy encoded value' }).click();
 
+  await page.removeAllListeners('request', { behavior: 'wait' });
   const requestLog = requests.join('\n');
   expect(requestLog).not.toContain(original);
   expect(requestLog).not.toContain(encoded);
