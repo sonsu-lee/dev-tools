@@ -58,7 +58,6 @@ src/
 
 docs/
 ├── domains/url-encoder/contract.md # 제품 동작과 보안 계약
-├── domains/delivery/contract.md    # CI/CD와 환경 전달 계약
 └── frontend/state-management.md    # 프런트엔드 상태 관리 기준
 
 tests/e2e/                # Playwright 기능·보안·접근성 테스트
@@ -87,16 +86,7 @@ Vercel의 기본 Web Analytics와 Speed Insights 컴포넌트는 동일 출처�
 
 ## Vercel 배포
 
-PR은 Continuous Integration에서 포맷, 린트, 타입, 빌드, 브라우저
-기능·보안·접근성 테스트와 Vercel Preview를 검증한다.
-`Continuous Integration Gate`와 리뷰가 통과한 변경만 `main`에
-병합한다.
-
-`main` 병합은 Continuous Deployment를 시작한다. 개발 빌드·배포의
-스모크 테스트를 통과한 동일 커밋을 운영 설정으로 다시 빌드하고
-배포한다. 마지막 단계에서 운영 대상, Git 커밋 메타데이터, 실제 응답과
-보안 헤더를 함께 검증한다.
-
-GitHub Environment는 `dev`, `prod`만 사용하며 Vercel 토큰은 환경별로
-분리한다. 자세한 트리거, 단계, 아티팩트와 실패 기준은
-[전달 계약](docs/domains/delivery/contract.md)을 따른다.
+GitHub Actions는 포맷, 린트, 타입 검사, 빌드, Playwright 테스트를
+실행한다. Vercel Git integration은 PR마다 Preview 배포를 만들고, `main`에
+병합된 뒤 Production 배포를 만든다. 따라서 이 저장소에는 Vercel CLI
+배포 작업, 토큰, 아티팩트 전달이 필요하지 않다.
