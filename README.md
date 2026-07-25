@@ -78,8 +78,8 @@ API를 사용하지 않는다.
 nonce 적용을 위해 페이지는 동적으로 렌더링된다. 최초 문서와 자체
 호스팅된 정적 자산은 서버에서 받지만, 페이지가 준비된 뒤 입력·표시·
 복사·초기화 과정에서 사용자 값으로 네트워크 요청을 만들지 않는다.
-Vercel Speed Insights는 입력값과 분리된 익명 성능 측정값만 동일
-출처 엔드포인트로 전송한다.
+Vercel Speed Insights는 익명 성능 측정값을, Web Analytics는 익명
+페이지뷰를 동일 출처 엔드포인트로 전송한다.
 
 세부 계약은 [URL 컴포넌트 인코더 계약](docs/domains/url-encoder/contract.md),
 시각 기준은 [디자인 문서](design.md)를 따른다.

@@ -489,9 +489,9 @@ export default function UrlEncoder() {
       <aside aria-label="Privacy note" {...props(styles.privacy)}>
         <p {...props(styles.privacyTitle)}>Local processing</p>
         <p {...props(styles.privacyText)}>
-          Your input is processed in this tab and is not sent to our server or browser storage.
-          Anonymous performance metrics are sent to Vercel. Copying places the encoded value on your
-          system clipboard.
+          Your input is processed in this tab and is not sent to our server, analytics, or browser
+          storage. Anonymous page views and performance metrics are sent to Vercel. Copying places
+          the encoded value on your system clipboard.
         </p>
         <p {...props(styles.warning)}>URL encoding is reversible. It is not encryption.</p>
       </aside>

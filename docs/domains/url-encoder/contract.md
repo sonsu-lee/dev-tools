@@ -72,7 +72,7 @@ encodeURIComponent(input)
 
 입력, 공개, 복사, 초기화가 원문이나 결과를 포함한 네트워크 요청을
 만들면 안 된다. Vercel Speed Insights는 입력값과 결과와 분리된 익명
-성능 측정값만 동일 출처로 전송한다.
+성능 측정값을, Web Analytics는 익명 페이지뷰를 동일 출처로 전송한다.
 
 프로덕션은 Next.js 공식 nonce 방식의 strict CSP를 사용한다.
 `script-src`와 `style-src`에는 요청별 nonce를 적용하고

@@ -11,7 +11,9 @@ test('presents one focused local-only encoding workflow', async ({ page }) => {
   ).toBeVisible();
   await expect(page.getByText('Input stays local', { exact: true })).toBeVisible();
   await expect(
-    page.getByText('Anonymous performance metrics are sent to Vercel.', { exact: false }),
+    page.getByText('Anonymous page views and performance metrics are sent to Vercel.', {
+      exact: false,
+    }),
   ).toBeVisible();
   await expect(page.getByText('URL encoding is reversible. It is not encryption.')).toBeVisible();
 });
