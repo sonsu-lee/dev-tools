@@ -1,109 +1,99 @@
-# URL 컴포넌트 인코더 계약
+# URL component encoder contract
 
-이 문서는 URL 컴포넌트 인코더가 계속 지켜야 하는 동작과 보안
-경계를 정의한다. 계약을 바꿀 때는 관련 구현과 테스트를 같은
-커밋에서 변경한다.
+This document defines the behavior and security boundaries that the URL component encoder must preserve. When this contract changes, update the related implementation and tests in the same commit.
 
-## 사용자 스토리
+## User goal
 
-개발자는 문자열을 붙여 넣고 JavaScript `encodeURIComponent()`와
-동일한 결과를 복사하려 한다. 입력값은 애플리케이션 서버나
-브라우저 저장소에 남지 않아야 한다.
+A developer wants to paste a string and copy the same result as JavaScript's `encodeURIComponent()`. The input must not remain on the application server or in browser storage.
 
-## 범위
+## Product scope
 
-첫 버전은 단일 행 문자열 하나를 변환한다.
+The first version transforms one single-line string.
 
-다음 기능은 만들지 않는다.
+Do not add these features:
 
-- 디코딩
-- 전체 URL 분석 또는 조립
-- RFC 3986 추가 변환
-- AWS 전용 필드
-- 기록, 계정, 동기화
-- 서버 변환 API
+- Decoding
+- Full URL parsing or assembly
+- Additional RFC 3986 transformations
+- Amazon Web Services (AWS)-specific fields
+- History, accounts, or synchronization
+- A server-side application programming interface (API) for transformations
 
-## 변환
+## Transformation behavior
 
-규범적 변환식은 다음 한 줄이다.
+The normative transformation is:
 
 ```ts
 encodeURIComponent(input)
 ```
 
-입력의 공백을 제거하거나 Unicode를 정규화하지 않는다. 공백을
-`+`로 바꾸거나 `!`, `'`, `(`, `)`, `*`를 추가 인코딩하지 않는다.
+Do not trim the input or normalize Unicode. Do not replace spaces with `+` or additionally encode `!`, `'`, `(`, `)`, or `*`.
 
-기준 예제:
+These examples define the expected results:
 
-| 입력 | 결과 |
+| Input | Result |
 | --- | --- |
 | `hello world` | `hello%20world` |
 | `p@ss:word` | `p%40ss%3Aword` |
 | `한글` | `%ED%95%9C%EA%B8%80` |
 | `🔐` | `%F0%9F%94%90` |
 
-`encodeURIComponent()`가 `URIError`를 던지면 원문을 유지하고 복사를
-비활성화하며 잘못된 Unicode라고 알린다.
+If `encodeURIComponent()` throws a `URIError`, preserve the original value, disable copying, and report invalid Unicode.
 
-## 상호작용
+## Interaction behavior
 
-- 원문과 결과는 기본적으로 마스킹한다.
-- Show values가 원문과 결과를 함께 공개하거나 숨긴다.
-- Copy는 공개 여부와 관계없이 인코딩 결과를 시스템 클립보드에 쓴다.
-- 복사 성공 후 원문과 화면 결과를 지우고 입력으로 포커스를 돌린다.
-- 복사 실패 후 값은 유지하며 결과를 공개해 수동 복사할 수 있다.
-- Clear는 값을 지우고 입력으로 포커스를 돌린다.
-- 입력을 변경하면 이전 성공 또는 오류 메시지를 지운다.
-- 탭 전환만으로 값을 지우지 않는다.
+The interface follows these interaction requirements:
 
-인코딩 결과와 오류는 원문에서 즉시 계산하는 파생값이며 별도 상태로
-저장하지 않는다.
+- Mask the original and encoded values by default.
+- Use **Show values** to reveal or hide both values together.
+- Use **Copy** to write the encoded result to the system clipboard without requiring the user to reveal the values.
+- After a successful copy, clear the original and displayed result, then return focus to the input.
+- After a failed copy, preserve the values and reveal the result for manual copying.
+- Use **Clear** to clear the values and return focus to the input.
+- Clear any previous success or error message when the input changes.
+- Do not clear values only because the user changes tabs.
 
-## 보안 경계
+Derive the encoded result and error directly from the original value. Do not store them as separate state.
 
-원문과 결과를 다음 위치에 넣지 않는다.
+## Security and privacy boundary
 
-- URL 경로, 쿼리, 해시
-- 쿠키
+Never place the original or encoded value in:
+
+- A URL path, query, or hash
+- Cookies
 - `localStorage`, `sessionStorage`, IndexedDB, Cache Storage
-- 네트워크 요청과 WebSocket
-- 콘솔, 분석 도구, 원격 오류 수집
+- Network requests or WebSockets
+- The console, analytics tools, or remote error collection
 
-입력, 공개, 복사, 초기화가 원문이나 결과를 포함한 네트워크 요청을
-만들면 안 된다. Vercel의 기본 Web Analytics와 Speed Insights 요청은
-허용하지만 원문과 결과를 포함하면 안 된다.
+Input, reveal, copy, and clear operations must not create a network request that contains the original or encoded value. Allow Vercel's default Web Analytics and Speed Insights requests only when they contain neither value.
 
-프로덕션은 Next.js 공식 nonce 방식의 strict CSP를 사용한다.
-`script-src`와 `style-src`에는 요청별 nonce를 적용하고
-`connect-src 'self'`, `object-src 'none'`, `frame-ancestors 'none'`을
-유지한다. 다른 보안 헤더는 `Referrer-Policy: no-referrer`,
-`X-Content-Type-Options: nosniff`, 제한적인 `Permissions-Policy`를
-포함한다.
+Production uses Next.js's official per-request nonce pattern with a strict Content Security Policy (CSP). Apply the nonce to `script-src` and `style-src`. Retain `connect-src 'self'`, `object-src 'none'`, and `frame-ancestors 'none'`. Other security headers include `Referrer-Policy: no-referrer`, `X-Content-Type-Options: nosniff`, and a restrictive `Permissions-Policy`.
 
-Copy는 결과를 시스템 클립보드로 전달한다. 클립보드에 기록된 뒤의
-수명은 브라우저와 운영체제가 관리하며 이 애플리케이션이 보장하지
-않는다. URL 인코딩은 암호화가 아니다.
+**Copy** transfers the result to the system clipboard. After the value reaches the clipboard, the browser and operating system manage its lifetime. The application cannot guarantee when the value expires or is deleted. URL encoding is not encryption.
 
-## 접근성
+## Accessibility requirements
 
-- 모든 기능은 키보드로 사용할 수 있다.
-- 레이블과 포커스 표시를 항상 제공한다.
-- 성공과 실패는 polite live region으로 알린다.
-- 버튼 대상은 최소 `44 × 44` CSS px다.
-- 일반 텍스트는 `4.5:1`, 기능 경계와 포커스는 `3:1` 이상이다.
-- `320` CSS px와 `200%` 확대에서도 기능과 정보가 유지된다.
-- 사용자 모션, 투명도, 대비, 강제 색상 설정을 존중한다.
+The interface follows these accessibility requirements:
 
-시각 기준은 [`design.md`](../../../design.md)를 따른다.
+- Make every function available from the keyboard.
+- Keep labels and focus indicators visible.
+- Announce success and failure through a polite live region.
+- Give each button a target size of at least `44 × 44` CSS px.
+- Maintain contrast ratios of at least `4.5:1` for regular text and `3:1` for functional boundaries and focus indicators.
+- Preserve functionality and information at `320` CSS px and `200%` zoom.
+- Respect user preferences for motion, transparency, contrast, and forced colors.
 
-## 승인 기준
+The [design specification](../../../design.md) defines the visual requirements.
 
-- 기준 예제가 `encodeURIComponent()`와 일치함
-- 복사 성공 후 값이 제거됨
-- 복사 실패와 Unicode 오류 후 값이 유지됨
-- Show values와 Clear가 키보드로 동작함
-- 원문과 결과가 네트워크 요청이나 브라우저 저장소에 포함되지 않음
-- CSP와 필수 보안 헤더가 프로덕션 응답에 있음
-- axe 기본 검사와 320 CSS px 검사가 통과함
-- Vercel 배포에 애플리케이션 환경 변수가 필요하지 않음
+## Acceptance criteria
+
+The implementation must satisfy these criteria:
+
+- The reference examples match `encodeURIComponent()`.
+- A successful copy removes the values.
+- A failed copy or Unicode error preserves the values.
+- **Show values** and **Clear** work from the keyboard.
+- Network requests and browser storage never contain the original or encoded value.
+- Production responses include the CSP and required security headers.
+- The default axe checks and `320` CSS px checks pass.
+- A Vercel deployment requires no application environment variables.

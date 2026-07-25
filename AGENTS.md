@@ -4,6 +4,12 @@
 This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
 <!-- END:nextjs-agent-rules -->
 
+## Documentation language
+
+- Use English by default for repository documentation and internal agent guidance.
+- Write canonical technical contracts and design documents in English.
+- Localized README companions are allowed when they remain aligned with the canonical English README.
+
 ## StyleX
 
 When writing or reviewing StyleX code, read and follow
