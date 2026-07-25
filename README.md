@@ -71,13 +71,15 @@ URL 인코더는 소수의 독립적인 로컬 UI 상태만 필요하므로 Reac
 ## 보안 경계
 
 프로덕션 페이지는 Next.js Proxy에서 요청마다 nonce를 만들고 strict
-CSP를 적용한다. `connect-src 'none'`, `object-src 'none'`,
-`frame-ancestors 'none'`을 유지하며 런타임 외부 자산, 분석 도구,
-서버 변환 API를 사용하지 않는다.
+CSP를 적용한다. `connect-src 'self'`, `object-src 'none'`,
+`frame-ancestors 'none'`을 유지하며 런타임 외부 자산과 서버 변환
+API를 사용하지 않는다.
 
 nonce 적용을 위해 페이지는 동적으로 렌더링된다. 최초 문서와 자체
 호스팅된 정적 자산은 서버에서 받지만, 페이지가 준비된 뒤 입력·표시·
 복사·초기화 과정에서 사용자 값으로 네트워크 요청을 만들지 않는다.
+Vercel Speed Insights는 입력값과 분리된 익명 성능 측정값만 동일
+출처 엔드포인트로 전송한다.
 
 세부 계약은 [URL 컴포넌트 인코더 계약](docs/domains/url-encoder/contract.md),
 시각 기준은 [디자인 문서](design.md)를 따른다.

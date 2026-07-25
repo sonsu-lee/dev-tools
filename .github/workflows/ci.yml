@@ -431,7 +431,7 @@ jobs:
             --fail \
             --dump-header "$RUNNER_TEMP/preview-headers.txt" \
             --output "$RUNNER_TEMP/preview-body.html"
-          grep -qi "^content-security-policy:.*connect-src[^;]*'none'" "$RUNNER_TEMP/preview-headers.txt"
+          grep -qi "^content-security-policy:.*connect-src 'self';" "$RUNNER_TEMP/preview-headers.txt"
           grep -qi '^x-content-type-options: nosniff' "$RUNNER_TEMP/preview-headers.txt"
           grep -q 'URL component encoder' "$RUNNER_TEMP/preview-body.html"
           grep -q 'encodeURIComponent' "$RUNNER_TEMP/preview-body.html"

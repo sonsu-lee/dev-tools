@@ -9,7 +9,10 @@ test('presents one focused local-only encoding workflow', async ({ page }) => {
   await expect(
     page.getByLabel('URL component encoder workspace').getByText('encodeURIComponent()'),
   ).toBeVisible();
-  await expect(page.getByText('Local only', { exact: true })).toBeVisible();
+  await expect(page.getByText('Input stays local', { exact: true })).toBeVisible();
+  await expect(
+    page.getByText('Anonymous performance metrics are sent to Vercel.', { exact: false }),
+  ).toBeVisible();
   await expect(page.getByText('URL encoding is reversible. It is not encryption.')).toBeVisible();
 });
 

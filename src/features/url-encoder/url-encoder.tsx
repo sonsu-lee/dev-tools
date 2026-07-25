@@ -383,7 +383,7 @@ export default function UrlEncoder() {
         </div>
         <div {...props(styles.glassSurface, styles.localBadge)}>
           <span aria-hidden="true" {...props(styles.localDot)} />
-          <span>Local only</span>
+          <span>Input stays local</span>
         </div>
       </header>
 
@@ -490,7 +490,8 @@ export default function UrlEncoder() {
         <p {...props(styles.privacyTitle)}>Local processing</p>
         <p {...props(styles.privacyText)}>
           Your input is processed in this tab and is not sent to our server or browser storage.
-          Copying places the encoded value on your system clipboard.
+          Anonymous performance metrics are sent to Vercel. Copying places the encoded value on your
+          system clipboard.
         </p>
         <p {...props(styles.warning)}>URL encoding is reversible. It is not encryption.</p>
       </aside>

@@ -9,7 +9,7 @@ test('serves a nonce-based CSP and restrictive security headers', async ({ page 
   expect(csp).toContain("default-src 'self'");
   expect(csp).toMatch(/script-src 'self' 'nonce-[^']+' 'strict-dynamic'/u);
   expect(csp).toMatch(/style-src 'self' 'nonce-[^']+'/u);
-  expect(csp).toContain("connect-src 'none'");
+  expect(csp).toContain("connect-src 'self'");
   expect(csp).toContain("object-src 'none'");
   expect(csp).toContain("frame-ancestors 'none'");
   expect(csp).not.toContain("'unsafe-inline'");
@@ -38,18 +38,18 @@ test('has no automatically detectable accessibility violations', async ({ page }
   expect(results.violations).toEqual([]);
 });
 
-test('does not send or persist values while the tool is used', async ({ page }) => {
+test('does not send or persist input values while the tool is used', async ({ page }) => {
   await page.goto('/');
   await page.waitForLoadState('networkidle');
 
   const requests: string[] = [];
-  page.on('request', (request) => requests.push(request.url()));
+  page.on('request', (request) => requests.push(`${request.url()} ${request.postData() ?? ''}`));
 
   await page.getByLabel('Original value').fill('do-not-send');
   await page.getByRole('checkbox', { name: 'Show values' }).check();
   await page.getByRole('button', { name: 'Copy encoded value' }).click();
 
-  expect(requests).toEqual([]);
+  expect(requests.join('\n')).not.toContain('do-not-send');
   await expect(page).toHaveURL('/');
   await expect
     .poll(() =>
